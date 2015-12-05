@@ -1,13 +1,23 @@
 enum pattern { NONE, THEATER_CHASE, RAINBOW_CYCLE, COLOR_WIPE };
 enum direction { FORWARD, REVERSE };
 
+#define MIN_CHASE_SPEED 60
+#define MAX_CHASE_SPEED 30
+#define CHASE_SPEED_INTERVAL 2
+#define CYCLE_TIME_SECONDS 30
+#define CHASE_INTERVAL_MILIS 300
+#define WIPE_INTERVAL_MILIS 500
+#define RAINBOW_INTERVAL_MILIS 2
 
-class ShieldPattern : public Adafruit_NeoPixel
+class Pattern : public Adafruit_NeoPixel
 {
   public:
     // Member Variables:
     pattern ActivePattern;
     direction Direction;
+
+    bool speedChange = false;   // must be overridden
+    bool accelerating = false;  // must be overridden
 
     unsigned long Interval;     // milliseconds between updates
     unsigned long lastUpdate;   // last update of position
@@ -19,7 +29,7 @@ class ShieldPattern : public Adafruit_NeoPixel
     void (*OnComplete)();       // callback
 
     // Constructor - calls base-class constructor to initialize strip
-    ShieldPattern(uint16_t pixels, uint8_t pin, uint8_t type, void (*callback)())
+    Pattern(uint16_t pixels, uint8_t pin, uint8_t type, void (*callback)())
     :Adafruit_NeoPixel(pixels, pin, type)
     {
         OnComplete = callback;
@@ -28,8 +38,10 @@ class ShieldPattern : public Adafruit_NeoPixel
         // Update the pattern
     void Update()
     {
+        ChangePattern();
         if((millis() - lastUpdate) > Interval) // time to update
         {
+            ChangeSpeed();
             lastUpdate = millis();
             switch(ActivePattern)
             {
@@ -75,6 +87,29 @@ class ShieldPattern : public Adafruit_NeoPixel
                 }
             }
         }
+    }
+
+    void ChangePattern() {
+      this_time = millis();
+      if((this_time - last_time) > (CYCLE_TIME_SECONDS * 1000)) {
+        last_time = millis();
+        switch(ActivePattern) {
+            case THEATER_CHASE:
+                Interval = RAINBOW_INTERVAL_MILIS;
+                ActivePattern = RAINBOW_CYCLE;
+                break;
+            case RAINBOW_CYCLE:
+                Interval = WIPE_INTERVAL_MILIS;
+                ActivePattern = COLOR_WIPE;
+                break;
+            case COLOR_WIPE:
+                Interval = CHASE_INTERVAL_MILIS;
+                ActivePattern = THEATER_CHASE;
+                break;
+            default:
+                break;
+        } 
+      }
     }
 
     // Initialize for a ColorWipe
@@ -145,7 +180,11 @@ class ShieldPattern : public Adafruit_NeoPixel
         show();
         Increment();
     }
-
+    
+  private:
+    unsigned long this_time = millis();
+    unsigned long last_time = this_time;
+  
     // Common Utility Functions
         // Returns the Red component of a 32-bit color
     uint8_t Red(uint32_t color)
@@ -206,6 +245,25 @@ class ShieldPattern : public Adafruit_NeoPixel
             Direction = FORWARD;
             Index = 0;
         }
+    }
+
+    void ChangeSpeed() {
+      if (speedChange) {
+        if (accelerating) {
+          Interval -= CHASE_SPEED_INTERVAL;
+          if (Interval < MAX_CHASE_SPEED) {
+            accelerating = false;
+            Interval += CHASE_SPEED_INTERVAL;
+          }
+        }
+        else {
+          Interval += CHASE_SPEED_INTERVAL;
+          if (Interval > MIN_CHASE_SPEED) {
+            accelerating = true;
+            Interval -= CHASE_SPEED_INTERVAL;
+          }
+        }
+      }
     }
 
     // Set all pixels to a color (synchronously)
