@@ -3,10 +3,9 @@ enum direction { FORWARD, REVERSE };
 
 #define MIN_CHASE_SPEED 60
 #define MAX_CHASE_SPEED 30
-#define CHASE_SPEED_INTERVAL 2
-#define CHASE_INTERVAL_MILIS 300
-#define WIPE_INTERVAL_MILIS 500
-#define RAINBOW_INTERVAL_MILIS 2
+#define CHASE_INTERVAL_MILIS 500
+#define WIPE_INTERVAL_MILIS 50
+#define RAINBOW_INTERVAL_MILIS 5
 
 class Pattern : public Adafruit_NeoPixel
 {
@@ -20,10 +19,10 @@ class Pattern : public Adafruit_NeoPixel
     bool lockPattern = false;
 
     unsigned long Interval;     // milliseconds between updates
-    unsigned long lastUpdate;   // last update of position
 
     uint32_t Color1, Color2;
     uint32_t CycleTime_Seconds = 30;
+    uint32_t SplitSize = 2;
     uint16_t TotalSteps;        // total number of steps in the pattern
     uint16_t Index;
 
@@ -64,6 +63,7 @@ class Pattern : public Adafruit_NeoPixel
                 default:
                     break;
             }
+            Increment();
         }
     }
 
@@ -102,16 +102,14 @@ class Pattern : public Adafruit_NeoPixel
         last_time = millis();
         switch(ActivePattern) {
             case THEATER_CHASE:
-                Interval = RAINBOW_INTERVAL_MILIS;
-                ActivePattern = RAINBOW_CYCLE;
+                RainbowCycle(RAINBOW_INTERVAL_MILIS);
                 break;
             case RAINBOW_CYCLE:
-                Interval = WIPE_INTERVAL_MILIS;
-                ActivePattern = COLOR_WIPE;
+                ColorWipe(Color1, Color2, WIPE_INTERVAL_MILIS);
                 break;
             case COLOR_WIPE:
                 Interval = CHASE_INTERVAL_MILIS;
-                ActivePattern = THEATER_CHASE;
+                TheaterChase(Color1, Color2, CHASE_INTERVAL_MILIS, 3);
                 break;
             default:
                 break;
@@ -120,28 +118,40 @@ class Pattern : public Adafruit_NeoPixel
     }
 
     // Initialize for a ColorWipe
-    void ColorWipe(uint32_t color, uint8_t interval, direction dir = FORWARD)
+    void ColorWipe(uint32_t color1, uint32_t color2, uint8_t interval, direction dir = FORWARD)
     {
-        Serial.print("Begin ColorWipe");
+        Serial.println("Begin ColorWipe");
         ActivePattern = COLOR_WIPE;
         Interval = interval;
         TotalSteps = numPixels();
-        Color1 = color;
+        Color1 = color1;
+        Color2 = color2;
         Index = 0;
         Direction = dir;
+        wipeColor = Color1;
     }
 
     // Update the Color Wipe Pattern
     void ColorWipeUpdate()
     {
-        setPixelColor(Index, Color1);
-        show();
-        Increment();
+      setPixelColor(Index, wipeColor);
+      show();
+      if (Index + 1 == TotalSteps)
+      {
+        if (wipeColor == Color1)
+        {
+          wipeColor = Color2;
+        }
+        else
+        {
+          wipeColor = Color1;
+        }
+      }
     }
 
     void RainbowCycle(uint8_t interval, direction dir = FORWARD)
     {
-      Serial.print("Begin RainbowCycle");
+      Serial.println("Begin RainbowCycle");
       ActivePattern = RAINBOW_CYCLE;
       Interval = interval;
       TotalSteps = 255;
@@ -157,15 +167,15 @@ class Pattern : public Adafruit_NeoPixel
             setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
         }
         show();
-        Increment();
     }
 
     // Initialize for a Theater Chase
-    void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, direction dir = FORWARD)
+    void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, uint8_t count, direction dir = FORWARD)
     {
-        Serial.print("Begin TheaterChase");
+        Serial.println("Begin TheaterChase");
         ActivePattern = THEATER_CHASE;
         Interval = interval;
+        SplitSize = count;               // SplitSize here will be the length of Color1
         TotalSteps = numPixels();
         Color1 = color1;
         Color2 = color2;
@@ -176,29 +186,29 @@ class Pattern : public Adafruit_NeoPixel
    // Update the Theater Chase Pattern
     void TheaterChaseUpdate()
     {
-        for(int i=0; i< numPixels(); i++)
-        {
-            if ((i + Index) % Interval == 0)
-            {
-                setPixelColor(i, Color1);
-            }
-            else
-            {
-                setPixelColor(i, Color2);
-            }
-        }
-        show();
-        Increment();
+      for(int i=0; i< numPixels(); i++)
+      {
+          if ((i + Index) % SplitSize == 0)
+          {
+              setPixelColor(i, Color1);
+          }
+          else
+          {
+              setPixelColor(i, Color2);
+          }
+      }
+      show();
     }
 
     // Initialize for a Circle Fade
-    void CircleFade(uint32_t color1, uint32_t color2, uint16_t count, uint16_t fadeLength, direction dir = FORWARD)
+    void CircleFade(uint32_t color1, uint32_t color2, uint16_t interval, uint16_t fadeLength, bool doubletone = false, direction dir = FORWARD)
     {
-        Serial.print("Begin CircleFade");
+        Serial.println("Begin CircleFade");
         ActivePattern = CIRCLE_FADE;
         CircleFadeLength = fadeLength;
-        Interval = count;     // for this pattern, interval is the number of circles
-        TotalSteps = numPixels();
+        Interval = interval;
+        circleFadeDouble = doubletone;
+        TotalSteps = numPixels() + 1;
         Color1 = color1;
         Color2 = color2;
         Index = 0;
@@ -208,31 +218,39 @@ class Pattern : public Adafruit_NeoPixel
    // Update the Theater Chase Pattern
     void CircleFadeUpdate()
     {
-      for(int i=0; i< numPixels(); i++)
-      {
-        uint16_t line = i / CircleFadeLength;
-        if (line > Interval) 
-        {
-          setPixelColor(i, 0);
-        }
-        else
-        {
-          uint32_t color = Color1;
-          if ( line % 2 == 1) { color = Color2; }
-          
-          uint16_t pixel = i % CircleFadeLength;
-          double percent = pixel / CircleFadeLength;
-
-          setPixelColor(i, DimColorPercent(color, percent));
-        }
-      }
+      CircleFadeSet(Index, Color1);
+//      if (circleFadeDouble)
+//      {
+//        uint32_t start = (Index + (TotalSteps / 2)) % TotalSteps;
+//        
+//      }
       show();
-      Increment();
+    }
+
+    void CircleFadeSet(uint32_t start, uint32_t color)
+    {
+      for (int i=0; i < CircleFadeLength; i++)
+      {
+        int point = start - i;
+        if (point < 0) { point = TotalSteps + point; }
+//        Serial.println(point);
+        double percent = (float)i/(float)CircleFadeLength;
+//        Serial.println(percent);
+        uint32_t colorDimmed = DimColorPercent(color, percent);
+        setPixelColor(point, colorDimmed);
+      }
+      int point = Index - CircleFadeLength;
+      if (point < 0) { point = TotalSteps + point; }
+      setPixelColor(point, 0); 
     }
     
   private:
+    unsigned long lastUpdate;   // last update of position
     unsigned long this_time = millis();
     unsigned long last_time = this_time;
+    bool circleFadeDouble = false;
+
+    uint32_t wipeColor;
   
     // Common Utility Functions
         // Returns the Red component of a 32-bit color
@@ -262,7 +280,21 @@ class Pattern : public Adafruit_NeoPixel
 
     uint32_t DimColorPercent(uint32_t color, double percent)
     {
-      uint32_t dimColor = Color(Red(color) * percent, Green(color) * percent, Blue(color) * percent);
+      if (percent == 0) { return color; }
+      uint32_t redPart = FlipColor((uint32_t)(Red(color)*percent));
+      uint32_t greenPart = FlipColor((uint32_t)(Green(color)*percent));
+      uint32_t bluePart = FlipColor((uint32_t)(Blue(color)*percent));
+      uint32_t dimColor = Color(redPart, greenPart, bluePart);
+      return dimColor;
+    }
+
+    uint32_t FlipColor(uint32_t color)
+    {
+      if (color != 0)
+      {
+        return 255 - color;
+      }
+      return color;
     }
 
     // Input a value 0 to 255 to get a color value.
@@ -304,17 +336,17 @@ class Pattern : public Adafruit_NeoPixel
     void ChangeSpeed() {
       if (speedChange) {
         if (accelerating) {
-          Interval -= CHASE_SPEED_INTERVAL;
+          Interval -= CHASE_INTERVAL_MILIS;
           if (Interval < MAX_CHASE_SPEED) {
             accelerating = false;
-            Interval += CHASE_SPEED_INTERVAL;
+            Interval += CHASE_INTERVAL_MILIS;
           }
         }
         else {
-          Interval += CHASE_SPEED_INTERVAL;
+          Interval += CHASE_INTERVAL_MILIS;
           if (Interval > MIN_CHASE_SPEED) {
             accelerating = true;
-            Interval -= CHASE_SPEED_INTERVAL;
+            Interval -= CHASE_INTERVAL_MILIS;
           }
         }
       }
