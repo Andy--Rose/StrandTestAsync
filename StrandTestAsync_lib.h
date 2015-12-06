@@ -6,6 +6,7 @@ enum direction { FORWARD, REVERSE };
 #define CHASE_INTERVAL_MILIS 500
 #define WIPE_INTERVAL_MILIS 50
 #define RAINBOW_INTERVAL_MILIS 5
+#define FADE_INTERVAL_MILIS 50
 
 class Pattern : public Adafruit_NeoPixel
 {
@@ -20,7 +21,8 @@ class Pattern : public Adafruit_NeoPixel
 
     unsigned long Interval;     // milliseconds between updates
 
-    uint32_t Color1, Color2;
+    uint32_t Color1 = Color(0,255,0);
+    uint32_t Color2 = Color(0,0,255);
     uint32_t CycleTime_Seconds = 30;
     uint32_t SplitSize = 2;
     uint16_t TotalSteps;        // total number of steps in the pattern
@@ -108,9 +110,10 @@ class Pattern : public Adafruit_NeoPixel
                 ColorWipe(Color1, Color2, WIPE_INTERVAL_MILIS);
                 break;
             case COLOR_WIPE:
-                Interval = CHASE_INTERVAL_MILIS;
-                TheaterChase(Color1, Color2, CHASE_INTERVAL_MILIS, 3);
+                CircleFade(Color1, Color2, FADE_INTERVAL_MILIS, 8, true);
                 break;
+            case CIRCLE_FADE:
+                TheaterChase(Color1, Color2, CHASE_INTERVAL_MILIS, 3);
             default:
                 break;
         } 
@@ -219,11 +222,11 @@ class Pattern : public Adafruit_NeoPixel
     void CircleFadeUpdate()
     {
       CircleFadeSet(Index, Color1);
-//      if (circleFadeDouble)
-//      {
-//        uint32_t start = (Index + (TotalSteps / 2)) % TotalSteps;
-//        
-//      }
+      if (circleFadeDouble)
+      {
+        uint32_t start = (Index + (TotalSteps / 2)) % TotalSteps;
+        CircleFadeSet(start, Color2);
+      }
       show();
     }
 
@@ -239,7 +242,7 @@ class Pattern : public Adafruit_NeoPixel
         uint32_t colorDimmed = DimColorPercent(color, percent);
         setPixelColor(point, colorDimmed);
       }
-      int point = Index - CircleFadeLength;
+      int point = start - CircleFadeLength;
       if (point < 0) { point = TotalSteps + point; }
       setPixelColor(point, 0); 
     }

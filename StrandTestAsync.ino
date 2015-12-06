@@ -19,7 +19,7 @@ void setup() {
 
   // Testing single pattern
   strand.lockPattern = true;
-  strand.CircleFade(strand.Color(255, 0, 0), strand.Color(0,255,0), 100, 8, true);
+  strand.CircleFade(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 8, true);
 }
 
 void loop() {
