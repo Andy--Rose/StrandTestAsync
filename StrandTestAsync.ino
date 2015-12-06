@@ -10,16 +10,18 @@ void setup() {
   Serial.begin(9600);
   strand.begin();
   strand.show();
-
-  // Normal cycling patterns
-  strand.RainbowCycle(5);
   strand.Color1 = strand.Color(0,255,0);
   strand.Color2 = strand.Color(255,0,0);
+  strand.Clap(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 3);
 
+//Test Patters
+//  strand.lockPattern = true;
 
-  // Testing single pattern
-  strand.lockPattern = true;
-  strand.CircleFade(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 8, true);
+  // Testing CircleFade pattern
+//  strand.CircleFade(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 8, true);
+
+//    Testing Clap pattern
+//  strand.Clap(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 3);
 }
 
 void loop() {

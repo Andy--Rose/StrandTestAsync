@@ -1,4 +1,4 @@
-enum pattern { NONE, THEATER_CHASE, RAINBOW_CYCLE, COLOR_WIPE, CIRCLE_FADE };
+enum pattern { NONE, THEATER_CHASE, RAINBOW_CYCLE, COLOR_WIPE, CIRCLE_FADE, CLAP };
 enum direction { FORWARD, REVERSE };
 
 #define MIN_CHASE_SPEED 60
@@ -7,6 +7,7 @@ enum direction { FORWARD, REVERSE };
 #define WIPE_INTERVAL_MILIS 50
 #define RAINBOW_INTERVAL_MILIS 5
 #define FADE_INTERVAL_MILIS 50
+#define CLAP_INTERVAL_MILIS 50
 
 class Pattern : public Adafruit_NeoPixel
 {
@@ -24,7 +25,7 @@ class Pattern : public Adafruit_NeoPixel
     uint32_t Color1 = Color(0,255,0);
     uint32_t Color2 = Color(0,0,255);
     uint32_t CycleTime_Seconds = 30;
-    uint32_t SplitSize = 2;
+    uint16_t SplitSize = 2;
     uint16_t TotalSteps;        // total number of steps in the pattern
     uint16_t Index;
 
@@ -53,14 +54,17 @@ class Pattern : public Adafruit_NeoPixel
                 case THEATER_CHASE:
                     TheaterChaseUpdate();
                     break;
-                case RAINBOW_CYCLE:
-                    RainbowCycleUpdate();
-                    break;
+//                case RAINBOW_CYCLE:
+//                    RainbowCycleUpdate();
+//                    break;
                 case COLOR_WIPE:
                     ColorWipeUpdate();
                     break;
                 case CIRCLE_FADE:
                     CircleFadeUpdate();
+                    break;
+                case CLAP:
+                    ClapUpdate();
                     break;
                 default:
                     break;
@@ -75,7 +79,7 @@ class Pattern : public Adafruit_NeoPixel
         if (Direction == FORWARD)
         {
            Index++;
-           if (Index >= TotalSteps)
+           if (Index > TotalSteps)
             {
                 Index = 0;
                 if (OnComplete != NULL)
@@ -87,7 +91,7 @@ class Pattern : public Adafruit_NeoPixel
         else // Direction == REVERSE
         {
             --Index;
-            if (Index <= 0)
+            if (Index < 0)
             {
                 Index = TotalSteps-1;
                 if (OnComplete != NULL)
@@ -102,18 +106,23 @@ class Pattern : public Adafruit_NeoPixel
       this_time = millis();
       if((this_time - last_time) > (CycleTime_Seconds * 1000)) {
         last_time = millis();
+        show();
         switch(ActivePattern) {
             case THEATER_CHASE:
-                RainbowCycle(RAINBOW_INTERVAL_MILIS);
-                break;
-            case RAINBOW_CYCLE:
+//                RainbowCycle(RAINBOW_INTERVAL_MILIS);
+//                break;
+//            case RAINBOW_CYCLE:
                 ColorWipe(Color1, Color2, WIPE_INTERVAL_MILIS);
                 break;
             case COLOR_WIPE:
                 CircleFade(Color1, Color2, FADE_INTERVAL_MILIS, 8, true);
                 break;
             case CIRCLE_FADE:
+                Clap(Color1, Color2, CLAP_INTERVAL_MILIS, 3);
+                break;
+            case CLAP:
                 TheaterChase(Color1, Color2, CHASE_INTERVAL_MILIS, 3);
+                break;
             default:
                 break;
         } 
@@ -173,7 +182,7 @@ class Pattern : public Adafruit_NeoPixel
     }
 
     // Initialize for a Theater Chase
-    void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, uint8_t count, direction dir = FORWARD)
+    void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, uint16_t count, direction dir = FORWARD)
     {
         Serial.println("Begin TheaterChase");
         ActivePattern = THEATER_CHASE;
@@ -245,6 +254,72 @@ class Pattern : public Adafruit_NeoPixel
       int point = start - CircleFadeLength;
       if (point < 0) { point = TotalSteps + point; }
       setPixelColor(point, 0); 
+    }
+
+        // Initialize for a Circle Fade
+    void Clap(uint32_t color1, uint32_t color2, uint16_t interval, uint16_t len)
+    {
+        Serial.println("Begin Clap");
+        ActivePattern = CLAP;
+        Interval = interval;
+        SplitSize = len;
+        TotalSteps = numPixels();
+        Color1 = color1;
+        Color2 = color2;
+        Index = 0;
+   }
+
+   // Update the Theater Chase Pattern
+    void ClapUpdate()
+    {
+      show();
+      if (Index >= (TotalSteps / 2))
+      {
+//        Serial.println("REVERSE");
+        Reverse();
+      }
+
+      // Set the ON lights
+      for (int i=0; i < SplitSize; i++)
+      {
+        int point = Index - i;
+        if (Direction == REVERSE)
+        {
+          point = Index + i;
+        }
+        ClapSet(point, Color1, Color2);
+      }
+
+      // Set the OFF lights
+      int point = Index - SplitSize;
+      if (Direction == REVERSE)
+      {
+        point = Index + SplitSize;
+      }
+      ClapSet(point, 0, 0);
+      show();
+    }
+
+    void ClapSet(int point, int32_t colorOne, int32_t colorTwo)
+    {
+      if (point >= 0)
+      {
+        if (point <= TotalSteps / 2)
+        {
+          setPixelColor(point, colorOne);
+          int oppositePoint = TotalSteps - point;
+          setPixelColor(oppositePoint, colorTwo);
+        }
+        else
+        {
+          if (colorOne == 0 && colorTwo == 0)
+          {
+            setPixelColor(point, colorOne);
+            int oppositePoint = TotalSteps - point;
+            setPixelColor(oppositePoint, colorTwo);
+          }
+        }
+      }
     }
     
   private:
@@ -327,12 +402,10 @@ class Pattern : public Adafruit_NeoPixel
         if (Direction == FORWARD)
         {
             Direction = REVERSE;
-            Index = TotalSteps-1;
         }
         else
         {
             Direction = FORWARD;
-            Index = 0;
         }
     }
 
