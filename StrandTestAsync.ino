@@ -7,11 +7,19 @@
 Pattern strand = Pattern(LEDS, PIN, NEO_GRB + NEO_KHZ800, &PatternComplete);
 
 void setup() {
+  Serial.begin(9600);
   strand.begin();
+  strand.show();
 
+  // Normal cycling patterns
   strand.RainbowCycle(1);
   strand.Color1 = strand.Color(0,255,0);
   strand.Color2 = strand.Color(255,0,0);
+
+//
+//  // Testing single pattern
+//  strand.lockPattern = true;
+//  strand.CircleFade(strand.Color(255, 0, 0), strand.Color(0,255,0), 1, 5);
 }
 
 void loop() {

@@ -1,10 +1,9 @@
-enum pattern { NONE, THEATER_CHASE, RAINBOW_CYCLE, COLOR_WIPE };
+enum pattern { NONE, THEATER_CHASE, RAINBOW_CYCLE, COLOR_WIPE, CIRCLE_FADE };
 enum direction { FORWARD, REVERSE };
 
 #define MIN_CHASE_SPEED 60
 #define MAX_CHASE_SPEED 30
 #define CHASE_SPEED_INTERVAL 2
-#define CYCLE_TIME_SECONDS 30
 #define CHASE_INTERVAL_MILIS 300
 #define WIPE_INTERVAL_MILIS 500
 #define RAINBOW_INTERVAL_MILIS 2
@@ -18,13 +17,18 @@ class Pattern : public Adafruit_NeoPixel
 
     bool speedChange = false;   // must be overridden
     bool accelerating = false;  // must be overridden
+    bool lockPattern = false;
 
     unsigned long Interval;     // milliseconds between updates
     unsigned long lastUpdate;   // last update of position
 
     uint32_t Color1, Color2;
+    uint32_t CycleTime_Seconds = 30;
     uint16_t TotalSteps;        // total number of steps in the pattern
     uint16_t Index;
+
+    // pattern-specific variables
+    uint16_t CircleFadeLength = 6;
 
     void (*OnComplete)();       // callback
 
@@ -38,7 +42,7 @@ class Pattern : public Adafruit_NeoPixel
         // Update the pattern
     void Update()
     {
-        ChangePattern();
+        if (!lockPattern) { ChangePattern(); }
         if((millis() - lastUpdate) > Interval) // time to update
         {
             ChangeSpeed();
@@ -53,6 +57,9 @@ class Pattern : public Adafruit_NeoPixel
                     break;
                 case COLOR_WIPE:
                     ColorWipeUpdate();
+                    break;
+                case CIRCLE_FADE:
+                    CircleFadeUpdate();
                     break;
                 default:
                     break;
@@ -91,7 +98,7 @@ class Pattern : public Adafruit_NeoPixel
 
     void ChangePattern() {
       this_time = millis();
-      if((this_time - last_time) > (CYCLE_TIME_SECONDS * 1000)) {
+      if((this_time - last_time) > (CycleTime_Seconds * 1000)) {
         last_time = millis();
         switch(ActivePattern) {
             case THEATER_CHASE:
@@ -115,6 +122,7 @@ class Pattern : public Adafruit_NeoPixel
     // Initialize for a ColorWipe
     void ColorWipe(uint32_t color, uint8_t interval, direction dir = FORWARD)
     {
+        Serial.print("Begin ColorWipe");
         ActivePattern = COLOR_WIPE;
         Interval = interval;
         TotalSteps = numPixels();
@@ -133,6 +141,7 @@ class Pattern : public Adafruit_NeoPixel
 
     void RainbowCycle(uint8_t interval, direction dir = FORWARD)
     {
+      Serial.print("Begin RainbowCycle");
       ActivePattern = RAINBOW_CYCLE;
       Interval = interval;
       TotalSteps = 255;
@@ -154,6 +163,7 @@ class Pattern : public Adafruit_NeoPixel
     // Initialize for a Theater Chase
     void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, direction dir = FORWARD)
     {
+        Serial.print("Begin TheaterChase");
         ActivePattern = THEATER_CHASE;
         Interval = interval;
         TotalSteps = numPixels();
@@ -168,7 +178,7 @@ class Pattern : public Adafruit_NeoPixel
     {
         for(int i=0; i< numPixels(); i++)
         {
-            if ((i + Index) % 3 == 0)
+            if ((i + Index) % Interval == 0)
             {
                 setPixelColor(i, Color1);
             }
@@ -179,6 +189,45 @@ class Pattern : public Adafruit_NeoPixel
         }
         show();
         Increment();
+    }
+
+    // Initialize for a Circle Fade
+    void CircleFade(uint32_t color1, uint32_t color2, uint16_t count, uint16_t fadeLength, direction dir = FORWARD)
+    {
+        Serial.print("Begin CircleFade");
+        ActivePattern = CIRCLE_FADE;
+        CircleFadeLength = fadeLength;
+        Interval = count;     // for this pattern, interval is the number of circles
+        TotalSteps = numPixels();
+        Color1 = color1;
+        Color2 = color2;
+        Index = 0;
+        Direction = dir;
+   }
+
+   // Update the Theater Chase Pattern
+    void CircleFadeUpdate()
+    {
+      for(int i=0; i< numPixels(); i++)
+      {
+        uint16_t line = i / CircleFadeLength;
+        if (line > Interval) 
+        {
+          setPixelColor(i, 0);
+        }
+        else
+        {
+          uint32_t color = Color1;
+          if ( line % 2 == 1) { color = Color2; }
+          
+          uint16_t pixel = i % CircleFadeLength;
+          double percent = pixel / CircleFadeLength;
+
+          setPixelColor(i, DimColorPercent(color, percent));
+        }
+      }
+      show();
+      Increment();
     }
     
   private:
@@ -209,6 +258,11 @@ class Pattern : public Adafruit_NeoPixel
     {
         uint32_t dimColor = Color(Red(color) >> 1, Green(color) >> 1, Blue(color) >> 1);
         return dimColor;
+    }
+
+    uint32_t DimColorPercent(uint32_t color, double percent)
+    {
+      uint32_t dimColor = Color(Red(color) * percent, Green(color) * percent, Blue(color) * percent);
     }
 
     // Input a value 0 to 255 to get a color value.
