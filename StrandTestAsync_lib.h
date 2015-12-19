@@ -25,9 +25,9 @@ class Pattern : public Adafruit_NeoPixel
     uint32_t Color1 = Color(0,255,0);
     uint32_t Color2 = Color(0,0,255);
     uint32_t CycleTime_Seconds = 30;
-    uint16_t SplitSize = 2;
-    uint16_t TotalSteps;        // total number of steps in the pattern
-    uint16_t Index;
+    uint16_t SplitSize = 3;     // default
+    uint16_t TotalSteps = numPixels();        // total number of steps in the pattern
+    uint16_t Index = 0;
 
     // pattern-specific variables
     uint16_t CircleFadeLength = 6;
@@ -39,6 +39,12 @@ class Pattern : public Adafruit_NeoPixel
     :Adafruit_NeoPixel(pixels, pin, type)
     {
         OnComplete = callback;
+    }
+
+    void Init()
+    {
+      ActivePattern = THEATER_CHASE;
+      Interval = CHASE_INTERVAL_MILIS;
     }
 
         // Update the pattern
@@ -202,11 +208,11 @@ class Pattern : public Adafruit_NeoPixel
       {
           if ((i + Index) % SplitSize == 0)
           {
-              setPixelColor(i, Color1);
+              setPixelColor(i, Color2);
           }
           else
           {
-              setPixelColor(i, Color2);
+              setPixelColor(i, Color1);
           }
       }
       show();

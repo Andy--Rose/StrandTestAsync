@@ -10,9 +10,10 @@ void setup() {
   Serial.begin(9600);
   strand.begin();
   strand.show();
-  strand.Color1 = strand.Color(0,255,0);
-  strand.Color2 = strand.Color(255,0,0);
-  strand.Clap(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 3);
+  strand.Color2 = strand.Color(0,255,0);
+  strand.Color1 = strand.Color(255,0,0);
+  strand.Init();
+//  strand.Clap(strand.Color(255, 0, 0), strand.Color(0,255,0), 50, 3);
 
 //Test Patters
 //  strand.lockPattern = true;
